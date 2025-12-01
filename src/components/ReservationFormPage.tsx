@@ -145,9 +145,7 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
               <button onClick={() => onNavigate('queue')} className="text-gray-700 hover:text-blue-600 transition-colors">
                 Status Antrian
               </button>
-              <button onClick={() => onNavigate('about')} className="text-gray-700 hover:text-blue-600 transition-colors">
-                Tentang Kami
-              </button>
+              
             </nav>
           </div>
         </div>

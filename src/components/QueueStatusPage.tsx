@@ -39,9 +39,6 @@ export function QueueStatusPage({ onNavigate }: QueueStatusPageProps) {
               <button onClick={() => onNavigate('queue')} className="text-blue-600">
                 Status Antrian
               </button>
-              <button onClick={() => onNavigate('about')} className="text-gray-700 hover:text-blue-600 transition-colors">
-                Tentang Kami
-              </button>
               <Button onClick={() => onNavigate('reservation')} className="bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600">
                 Reservasi Sekarang
               </Button>
