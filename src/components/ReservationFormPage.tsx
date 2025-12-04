@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, ArrowLeft, Calendar, User, Phone, Mail, FileText, CheckCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -6,6 +6,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { getServices } from '../lib/api/services';
+import { getDoctors } from '../lib/api/doctors';
+import { createReservation, generateQueueNumber } from '../lib/api/reservations';
+import type { Service, Doctor } from '../types/database';
 
 type Page = 'landing' | 'queue' | 'reservation' | 'about' | 'admin-login' | 'admin-dashboard' | 'admin-doctors' | 'admin-services' | 'admin-reservations';
 
@@ -13,26 +17,13 @@ interface ReservationFormPageProps {
   onNavigate: (page: Page) => void;
 }
 
-const services = [
-  'Konsultasi Umum',
-  'Pemeriksaan Jantung',
-  'Cek Kesehatan Rutin',
-  'Konsultasi Spesialis',
-];
-
-const doctors = [
-  'Dr. Sarah Wijaya, Sp.PD',
-  'Dr. Ahmad Hartono, Sp.JP',
-  'Dr. Lisa Andini, Sp.A',
-  'Dr. Budi Santoso, Sp.OG',
-];
-
-const timeSlots = [
-  '08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'
-];
-
 export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
+  const [services, setServices] = useState<Service[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [queueNumber, setQueueNumber] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -44,9 +35,57 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
     notes: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch services and doctors on mount
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const [servicesData, doctorsData] = await Promise.all([
+          getServices(),
+          getDoctors(true), // Only active doctors
+        ]);
+        setServices(servicesData);
+        setDoctors(doctorsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitted(true);
+    
+    try {
+      setSubmitting(true);
+      
+      // Generate queue number
+      const generatedQueueNumber = await generateQueueNumber();
+      
+      // Create reservation
+      await createReservation({
+        queue_number: generatedQueueNumber,
+        patient_name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        doctor_id: formData.doctor,
+        service_id: formData.service,
+        appointment_date: formData.date,
+        appointment_time: formData.time,
+        notes: formData.notes || null,
+      });
+
+      setQueueNumber(generatedQueueNumber);
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error('Error creating reservation:', error);
+      alert('Terjadi kesalahan saat membuat reservasi. Silakan coba lagi.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (isSubmitted) {
@@ -103,8 +142,8 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
                     <span className="text-gray-900">{formData.time}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Nomor Antrian:</span>
-                    <span className="text-blue-600">A012</span>
+                      <p className="text-sm text-gray-600 mb-1">Nomor Antrian:</p>
+                      <p className="text-blue-600">{queueNumber}</p>
                   </div>
                 </div>
               </div>
@@ -230,9 +269,15 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
                         <SelectValue placeholder="Pilih layanan" />
                       </SelectTrigger>
                       <SelectContent>
-                        {services.map((service) => (
-                          <SelectItem key={service} value={service}>{service}</SelectItem>
-                        ))}
+                        {loading ? (
+                          <SelectItem value="loading" disabled>Memuat...</SelectItem>
+                        ) : services.length === 0 ? (
+                          <SelectItem value="none" disabled>Tidak ada layanan</SelectItem>
+                        ) : (
+                          services.map((service) => (
+                            <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -243,9 +288,15 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
                         <SelectValue placeholder="Pilih dokter" />
                       </SelectTrigger>
                       <SelectContent>
-                        {doctors.map((doctor) => (
-                          <SelectItem key={doctor} value={doctor}>{doctor}</SelectItem>
-                        ))}
+                        {loading ? (
+                          <SelectItem value="loading" disabled>Memuat...</SelectItem>
+                        ) : doctors.length === 0 ? (
+                          <SelectItem value="none" disabled>Tidak ada dokter</SelectItem>
+                        ) : (
+                          doctors.map((doctor) => (
+                            <SelectItem key={doctor.id} value={doctor.id}>{doctor.name}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -271,7 +322,7 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
                         <SelectValue placeholder="Pilih waktu" />
                       </SelectTrigger>
                       <SelectContent>
-                        {timeSlots.map((time) => (
+                        {['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'].map((time: string) => (
                           <SelectItem key={time} value={time}>{time}</SelectItem>
                         ))}
                       </SelectContent>
@@ -297,8 +348,13 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
 
               {/* Submit Button */}
               <div className="pt-6 border-t">
-                <Button type="submit" size="lg" className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600">
-                  Konfirmasi Reservasi
+                <Button 
+                  type="submit" 
+                  size="lg" 
+                  className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+                  disabled={submitting || loading}
+                >
+                  {submitting ? 'Memproses...' : 'Konfirmasi Reservasi'}
                 </Button>
               </div>
             </form>

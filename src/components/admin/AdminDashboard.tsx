@@ -1,6 +1,9 @@
+import { useState, useEffect } from 'react';
 import { Heart, Calendar, Users, UserCheck, UserPlus, LogOut, LayoutDashboard, Stethoscope, Briefcase, ClipboardList } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { getDashboardStats, getReservations } from '../../lib/api/reservations';
+import type { Reservation } from '../../types/database';
 
 type Page = 'landing' | 'queue' | 'reservation' | 'about' | 'admin-login' | 'admin-dashboard' | 'admin-doctors' | 'admin-services' | 'admin-reservations';
 
@@ -9,18 +12,41 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-const recentReservations = [
-  { id: 1, patient: 'Ahmad Wijaya', doctor: 'Dr. Sarah Wijaya, Sp.PD', time: '09:00', status: 'Dikonfirmasi' },
-  { id: 2, patient: 'Siti Nurhaliza', doctor: 'Dr. Ahmad Hartono, Sp.JP', time: '10:30', status: 'Menunggu' },
-  { id: 3, patient: 'Budi Santoso', doctor: 'Dr. Lisa Andini, Sp.A', time: '11:00', status: 'Dikonfirmasi' },
-  { id: 4, patient: 'Lisa Rahmawati', doctor: 'Dr. Budi Santoso, Sp.OG', time: '13:00', status: 'Dikonfirmasi' },
-];
-
 export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
+  const [stats, setStats] = useState({
+    todayReservations: 0,
+    weekReservations: 0,
+    activeDoctors: 0,
+    newPatients: 0,
+  });
+  const [recentReservations, setRecentReservations] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        setLoading(true);
+        // Fetch statistics
+        const dashboardStats = await getDashboardStats();
+        setStats(dashboardStats);
+
+        // Fetch recent reservations (today's reservations)
+        const today = new Date().toISOString().split('T')[0];
+        const todayReservations = await getReservations({ date: today });
+        setRecentReservations(todayReservations.slice(0, 4)); // Get first 4
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDashboardData();
+  }, []);
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-gradient-to-b from-blue-600 to-green-600 text-white p-6">
+      <aside className="w-80 bg-gradient-to-b from-blue-600 to-green-600 text-white p-6">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -99,10 +125,10 @@ export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
-                  <p className="text-4xl text-blue-600">24</p>
+                  <p className="text-4xl text-blue-600">{loading ? '...' : stats.todayReservations}</p>
                   <Calendar className="w-10 h-10 text-blue-400" />
                 </div>
-                <p className="text-sm text-gray-600 mt-2">+12% dari kemarin</p>
+                <p className="text-sm text-gray-600 mt-2">Data hari ini</p>
               </CardContent>
             </Card>
 
@@ -112,10 +138,10 @@ export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
-                  <p className="text-4xl text-green-600">142</p>
+                  <p className="text-4xl text-green-600">{loading ? '...' : stats.weekReservations}</p>
                   <Users className="w-10 h-10 text-green-400" />
                 </div>
-                <p className="text-sm text-gray-600 mt-2">+8% dari minggu lalu</p>
+                <p className="text-sm text-gray-600 mt-2">7 hari terakhir</p>
               </CardContent>
             </Card>
 
@@ -125,10 +151,10 @@ export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
-                  <p className="text-4xl text-purple-600">12</p>
+                  <p className="text-4xl text-purple-600">{loading ? '...' : stats.activeDoctors}</p>
                   <UserCheck className="w-10 h-10 text-purple-400" />
                 </div>
-                <p className="text-sm text-gray-600 mt-2">dari 15 dokter total</p>
+                <p className="text-sm text-gray-600 mt-2">Dokter tersedia</p>
               </CardContent>
             </Card>
 
@@ -138,7 +164,7 @@ export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
-                  <p className="text-4xl text-yellow-600">7</p>
+                  <p className="text-4xl text-yellow-600">{loading ? '...' : stats.newPatients}</p>
                   <UserPlus className="w-10 h-10 text-yellow-400" />
                 </div>
                 <p className="text-sm text-gray-600 mt-2">Minggu ini</p>
@@ -153,34 +179,44 @@ export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
               <CardDescription>Daftar reservasi yang perlu diperhatikan</CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="space-y-3">
-                {recentReservations.map((reservation) => (
-                  <div key={reservation.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white">
-                        {reservation.patient.split(' ').map(n => n[0]).join('')}
+              {loading ? (
+                <div className="text-center py-8 text-gray-500">Memuat data...</div>
+              ) : recentReservations.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">Tidak ada reservasi hari ini</div>
+              ) : (
+                <div className="space-y-3">
+                  {recentReservations.map((reservation) => (
+                    <div key={reservation.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white font-bold">
+                          {reservation.patient_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </div>
+                        <div>
+                          <p className="text-gray-900 font-medium">{reservation.patient_name}</p>
+                          <p className="text-sm text-gray-600">{reservation.doctor?.name || 'Dokter tidak tersedia'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-gray-900">{reservation.patient}</p>
-                        <p className="text-sm text-gray-600">{reservation.doctor}</p>
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <p className="text-sm text-gray-600">Waktu</p>
+                          <p className="text-gray-900 font-medium">{reservation.appointment_time}</p>
+                        </div>
+                        <div className={`px-4 py-2 rounded-lg ${
+                          reservation.status === 'Dikonfirmasi' 
+                            ? 'bg-green-100 text-green-700' 
+                            : reservation.status === 'Menunggu'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : reservation.status === 'Selesai'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {reservation.status}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600">Waktu</p>
-                        <p className="text-gray-900">{reservation.time}</p>
-                      </div>
-                      <div className={`px-4 py-2 rounded-lg ${
-                        reservation.status === 'Dikonfirmasi' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {reservation.status}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
               <div className="mt-6 text-center">
                 <Button onClick={() => onNavigate('admin-reservations')} variant="outline">
                   Lihat Semua Reservasi
