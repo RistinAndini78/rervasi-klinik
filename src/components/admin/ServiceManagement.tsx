@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, LogOut, LayoutDashboard, Stethoscope, Briefcase, ClipboardList, Plus, Edit, Trash2, X, Clock, DollarSign } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { getServices, createService, deleteService } from '../../lib/api/services';
+import type { Service } from '../../types/database';
 
 type Page = 'landing' | 'queue' | 'reservation' | 'about' | 'admin-login' | 'admin-dashboard' | 'admin-doctors' | 'admin-services' | 'admin-reservations';
 
@@ -14,52 +15,9 @@ interface ServiceManagementProps {
   onLogout: () => void;
 }
 
-interface Service {
-  id: number;
-  name: string;
-  description: string;
-  price: string;
-  duration: string;
-  relatedDoctors: string[];
-}
-
-const initialServices: Service[] = [
-  {
-    id: 1,
-    name: 'Konsultasi Umum',
-    description: 'Pemeriksaan kesehatan umum dan konsultasi dengan dokter',
-    price: 'Rp 150.000',
-    duration: '30 menit',
-    relatedDoctors: ['Dr. Sarah Wijaya, Sp.PD'],
-  },
-  {
-    id: 2,
-    name: 'Pemeriksaan Jantung',
-    description: 'Pemeriksaan lengkap kesehatan jantung dan pembuluh darah',
-    price: 'Rp 500.000',
-    duration: '60 menit',
-    relatedDoctors: ['Dr. Ahmad Hartono, Sp.JP'],
-  },
-  {
-    id: 3,
-    name: 'Cek Kesehatan Rutin',
-    description: 'Medical check-up lengkap untuk deteksi dini penyakit',
-    price: 'Rp 300.000',
-    duration: '45 menit',
-    relatedDoctors: ['Dr. Sarah Wijaya, Sp.PD', 'Dr. Ahmad Hartono, Sp.JP'],
-  },
-  {
-    id: 4,
-    name: 'Konsultasi Spesialis',
-    description: 'Konsultasi dengan dokter spesialis sesuai kebutuhan',
-    price: 'Rp 400.000',
-    duration: '45 menit',
-    relatedDoctors: ['Dr. Lisa Andini, Sp.A', 'Dr. Budi Santoso, Sp.OG'],
-  },
-];
-
 export function ServiceManagement({ onNavigate, onLogout }: ServiceManagementProps) {
-  const [services, setServices] = useState<Service[]>(initialServices);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -68,30 +26,65 @@ export function ServiceManagement({ onNavigate, onLogout }: ServiceManagementPro
     description: '',
     price: '',
     duration: '',
+    icon: 'Stethoscope',
+    color: 'bg-blue-100 text-blue-600',
   });
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleAddService = () => {
-    const newService: Service = {
-      id: services.length + 1,
-      name: formData.name,
-      description: formData.description,
-      price: formData.price,
-      duration: formData.duration,
-      relatedDoctors: [],
-    };
-    setServices([...services, newService]);
-    setIsAddModalOpen(false);
-    setFormData({ name: '', description: '', price: '', duration: '' });
+  useEffect(() => {
+    fetchServices();
+  }, []);
+
+  async function fetchServices() {
+    try {
+      setLoading(true);
+      const data = await getServices();
+      setServices(data);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      alert('Gagal memuat data layanan');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleAddService = async () => {
+    try {
+      setSubmitting(true);
+      await createService({
+        name: formData.name,
+        description: formData.description || null,
+        price: parseInt(formData.price),
+        duration: parseInt(formData.duration),
+        icon: formData.icon,
+        color: formData.color,
+      });
+      await fetchServices();
+      setIsAddModalOpen(false);
+      setFormData({ name: '', description: '', price: '', duration: '', icon: 'Stethoscope', color: 'bg-blue-100 text-blue-600' });
+    } catch (error) {
+      console.error('Error adding service:', error);
+      alert('Gagal menambahkan layanan');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDeleteService = (id: number) => {
-    setServices(services.filter(s => s.id !== id));
+  const handleDeleteService = async (id: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus layanan ini?')) return;
+    try {
+      await deleteService(id);
+      await fetchServices();
+    } catch (error) {
+      console.error('Error deleting service:', error);
+      alert('Gagal menghapus layanan');
+    }
   };
 
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-gradient-to-b from-blue-600 to-green-600 text-white p-6">
+      <aside className="w-80 bg-gradient-to-b from-blue-600 to-green-600 text-white p-6">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -157,77 +150,64 @@ export function ServiceManagement({ onNavigate, onLogout }: ServiceManagementPro
         </header>
 
         <div className="p-8">
-          {/* Service Table */}
-          <Card className="border-2 border-gray-100">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50">
-              <CardTitle className="text-gray-900">Daftar Layanan</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-4 text-gray-600">Nama Layanan</th>
-                      <th className="text-left py-3 px-4 text-gray-600">Deskripsi</th>
-                      <th className="text-left py-3 px-4 text-gray-600">Harga</th>
-                      <th className="text-left py-3 px-4 text-gray-600">Durasi</th>
-                      <th className="text-left py-3 px-4 text-gray-600">Dokter Terkait</th>
-                      <th className="text-center py-3 px-4 text-gray-600">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {services.map((service) => (
-                      <tr key={service.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-4 px-4">
-                          <p className="text-gray-900">{service.name}</p>
-                        </td>
-                        <td className="py-4 px-4">
-                          <p className="text-sm text-gray-600 max-w-xs">{service.description}</p>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2 text-blue-600">
-                            <DollarSign className="w-4 h-4" />
-                            <span>{service.price}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <Clock className="w-4 h-4" />
-                            <span>{service.duration}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <p className="text-sm text-gray-600">{service.relatedDoctors.length} dokter</p>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex gap-2 justify-center">
-                            <Button 
-                              onClick={() => {
-                                setSelectedService(service);
-                                setIsEditModalOpen(true);
-                              }}
-                              variant="outline" 
-                              size="sm"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              onClick={() => handleDeleteService(service.id)}
-                              variant="outline" 
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          {loading ? (
+            <div className="text-center py-12 text-gray-500">Memuat data layanan...</div>
+          ) : services.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">Belum ada layanan terdaftar</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-6">
+              {services.map((service) => (
+                <Card key={service.id} className="border-2 border-gray-100 hover:shadow-lg transition-shadow">
+                  <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-gray-900 mb-2">{service.name}</CardTitle>
+                        <p className="text-gray-600">{service.description}</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="mb-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm text-gray-600">Harga</span>
+                        </div>
+                        <p className="text-blue-600 font-medium">Rp {service.price.toLocaleString('id-ID')}</p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-green-600" />
+                          <span className="text-sm text-gray-600">Durasi</span>
+                        </div>
+                        <p className="text-gray-900">{service.duration} menit</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-4 border-t">
+                      <Button 
+                        onClick={() => {
+                          setSelectedService(service);
+                          setIsEditModalOpen(true);
+                        }}
+                        variant="outline" 
+                        className="flex-1"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button 
+                        onClick={() => handleDeleteService(service.id)}
+                        variant="outline" 
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 
@@ -325,11 +305,7 @@ export function ServiceManagement({ onNavigate, onLogout }: ServiceManagementPro
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Durasi:</span>
-                    <span className="text-gray-900">{selectedService.duration}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Dokter Terkait:</span>
-                    <span className="text-gray-900">{selectedService.relatedDoctors.length} dokter</span>
+                    <span className="text-gray-900">{selectedService.duration} menit</span>
                   </div>
                 </div>
                 <p className="text-sm text-gray-500">

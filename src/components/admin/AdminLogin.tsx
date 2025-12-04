@@ -24,15 +24,23 @@ interface AdminLoginProps {
 export function AdminLogin({ onLogin, onNavigate }: AdminLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
 
-    // VALIDASI EMAIL & PASSWORD KHUSUS
-    if (email === "admin123@gmail.com" && password === "admin123") {
+    try {
+      setLoading(true);
+      const { signIn } = await import('../../lib/api/auth');
+      await signIn(email, password);
       onLogin();
-    } else {
-      alert("Email atau password salah!");
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Email atau password salah. Silakan coba lagi.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,6 +67,11 @@ export function AdminLogin({ onLogin, onNavigate }: AdminLoginProps) {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                {error}
+              </div>
+            )}
 
             {/* Email */}
             <div className="space-y-2">
@@ -73,6 +86,7 @@ export function AdminLogin({ onLogin, onNavigate }: AdminLoginProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={loading}
               />
             </div>
 
@@ -89,6 +103,7 @@ export function AdminLogin({ onLogin, onNavigate }: AdminLoginProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={loading}
               />
             </div>
 
@@ -96,8 +111,9 @@ export function AdminLogin({ onLogin, onNavigate }: AdminLoginProps) {
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+              disabled={loading}
             >
-              Masuk ke Dashboard
+              {loading ? 'Memproses...' : 'Masuk ke Dashboard'}
             </Button>
           </form>
 

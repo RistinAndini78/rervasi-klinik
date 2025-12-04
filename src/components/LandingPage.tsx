@@ -1,7 +1,11 @@
+import { useState, useEffect } from 'react';
 import { Calendar, Clock, Users, Heart, Stethoscope, Activity } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
+import { getServices } from '../lib/api/services';
+import { getDoctors } from '../lib/api/doctors';
+import type { Service, Doctor } from '../types/database';
 
 type Page = 'landing' | 'queue' | 'reservation' | 'about' | 'admin-login' | 'admin-dashboard' | 'admin-doctors' | 'admin-services' | 'admin-reservations';
 
@@ -9,21 +13,82 @@ interface LandingPageProps {
   onNavigate: (page: Page) => void;
 }
 
-const services = [
-  { id: 1, name: 'Konsultasi Umum', icon: Stethoscope, price: 'Rp 150.000', duration: '30 menit', color: 'bg-blue-100 text-blue-600' },
-  { id: 2, name: 'Pemeriksaan Jantung', icon: Heart, price: 'Rp 500.000', duration: '60 menit', color: 'bg-red-100 text-red-600' },
-  { id: 3, name: 'Cek Kesehatan Rutin', icon: Activity, price: 'Rp 300.000', duration: '45 menit', color: 'bg-green-100 text-green-600' },
-  { id: 4, name: 'Konsultasi Spesialis', icon: Users, price: 'Rp 400.000', duration: '45 menit', color: 'bg-purple-100 text-purple-600' },
-];
+// Icon mapping for services
+const iconMap: Record<string, any> = {
+  Stethoscope,
+  Heart,
+  Activity,
+  Users,
+};
 
-const doctors = [
-  { id: 1, name: 'Dr. Sarah Wijaya, Sp.PD', specialty: 'Penyakit Dalam', schedule: 'Senin - Jumat, 08:00 - 16:00', status: 'Tersedia Hari Ini', image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&h=400&fit=crop' },
-  { id: 2, name: 'Dr. Ahmad Hartono, Sp.JP', specialty: 'Jantung & Pembuluh Darah', schedule: 'Selasa - Sabtu, 09:00 - 17:00', status: 'Tersedia Hari Ini', image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop' },
-  { id: 3, name: 'Dr. Lisa Andini, Sp.A', specialty: 'Anak', schedule: 'Senin - Kamis, 10:00 - 18:00', status: 'Tersedia Besok', image: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=400&h=400&fit=crop' },
-  { id: 4, name: 'Dr. Budi Santoso, Sp.OG', specialty: 'Kebidanan & Kandungan', schedule: 'Rabu - Minggu, 08:00 - 15:00', status: 'Tersedia Hari Ini', image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400&h=400&fit=crop' },
-];
+// Helper function to format price
+const formatPrice = (price: number) => {
+  return `Rp ${price.toLocaleString('id-ID')}`;
+};
+
+// Helper function to format duration
+const formatDuration = (duration: number) => {
+  return `${duration} menit`;
+};
+
+// Helper function to get schedule display text
+const getScheduleText = (schedule: any) => {
+  const days = Object.entries(schedule)
+    .filter(([_, time]) => time !== null)
+    .map(([day, _]) => {
+      const dayNames: Record<string, string> = {
+        senin: 'Senin',
+        selasa: 'Selasa',
+        rabu: 'Rabu',
+        kamis: 'Kamis',
+        jumat: 'Jumat',
+        sabtu: 'Sabtu',
+        minggu: 'Minggu',
+      };
+      return dayNames[day];
+    });
+
+  if (days.length === 0) return 'Tidak ada jadwal';
+
+  const firstDay = days[0];
+  const lastDay = days[days.length - 1];
+  
+  // Get time from first scheduled day
+  const firstScheduledDay = Object.entries(schedule).find(([_, time]) => time !== null);
+  const timeInfo = firstScheduledDay?.[1] as { start: string; end: string } | null;
+  const timeText = timeInfo ? `${timeInfo.start} - ${timeInfo.end}` : '';
+
+  if (days.length === 1) {
+    return `${firstDay}, ${timeText}`;
+  }
+
+  return `${firstDay} - ${lastDay}, ${timeText}`;
+};
 
 export function LandingPage({ onNavigate }: LandingPageProps) {
+  const [services, setServices] = useState<Service[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const [servicesData, doctorsData] = await Promise.all([
+          getServices(),
+          getDoctors(true), // Only active doctors
+        ]);
+        setServices(servicesData);
+        setDoctors(doctorsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -114,28 +179,38 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             </p>
           </div>
           <div className="grid grid-cols-4 gap-6">
-            {services.map((service) => {
-              const Icon = service.icon;
-              return (
-                <Card key={service.id} className="hover:shadow-lg transition-shadow border-2 border-gray-100 hover:border-blue-200">
-                  <CardHeader>
-                    <div className={`w-16 h-16 ${service.color} rounded-2xl flex items-center justify-center mb-4`}>
-                      <Icon className="w-8 h-8" />
-                    </div>
-                    <CardTitle className="text-gray-900">{service.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Clock className="w-4 h-4" />
-                        <span className="text-sm">{service.duration}</span>
+            {loading ? (
+              <div className="col-span-4 text-center py-12 text-gray-500">
+                Memuat layanan...
+              </div>
+            ) : services.length === 0 ? (
+              <div className="col-span-4 text-center py-12 text-gray-500">
+                Tidak ada layanan tersedia
+              </div>
+            ) : (
+              services.map((service) => {
+                const Icon = iconMap[service.icon] || Stethoscope;
+                return (
+                  <Card key={service.id} className="hover:shadow-lg transition-shadow border-2 border-gray-100 hover:border-blue-200">
+                    <CardHeader>
+                      <div className={`w-16 h-16 ${service.color} rounded-2xl flex items-center justify-center mb-4`}>
+                        <Icon className="w-8 h-8" />
                       </div>
-                      <p className="text-2xl text-blue-600">{service.price}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      <CardTitle className="text-gray-900">{service.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Clock className="w-4 h-4" />
+                          <span className="text-sm">{formatDuration(service.duration)}</span>
+                        </div>
+                        <p className="text-2xl text-blue-600">{formatPrice(service.price)}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </div>
         </div>
       </section>
@@ -151,32 +226,42 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             </p>
           </div>
           <div className="grid grid-cols-2 gap-8">
-            {doctors.map((doctor) => (
-              <Card key={doctor.id} className="overflow-hidden hover:shadow-xl transition-shadow border-2 border-gray-100">
-                <div className="flex gap-6 p-6">
-                  <img 
-                    src={doctor.image} 
-                    alt={doctor.name}
-                    className="w-32 h-32 rounded-2xl object-cover"
-                  />
-                  <div className="flex-1">
-                    <CardHeader className="p-0 mb-3">
-                      <CardTitle className="text-gray-900">{doctor.name}</CardTitle>
-                      <CardDescription className="text-blue-600">{doctor.specialty}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0 space-y-3">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Calendar className="w-4 h-4" />
-                        <span className="text-sm">{doctor.schedule}</span>
-                      </div>
-                      <Badge className={doctor.status === 'Tersedia Hari Ini' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
-                        {doctor.status}
-                      </Badge>
-                    </CardContent>
+            {loading ? (
+              <div className="col-span-2 text-center py-12 text-gray-500">
+                Memuat data dokter...
+              </div>
+            ) : doctors.length === 0 ? (
+              <div className="col-span-2 text-center py-12 text-gray-500">
+                Tidak ada dokter tersedia
+              </div>
+            ) : (
+              doctors.map((doctor) => (
+                <Card key={doctor.id} className="overflow-hidden hover:shadow-xl transition-shadow border-2 border-gray-100">
+                  <div className="flex gap-6 p-6">
+                    <img 
+                      src={doctor.image_url || 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop'} 
+                      alt={doctor.name}
+                      className="w-32 h-32 rounded-2xl object-cover"
+                    />
+                    <div className="flex-1">
+                      <CardHeader className="p-0 mb-3">
+                        <CardTitle className="text-gray-900">{doctor.name}</CardTitle>
+                        <CardDescription className="text-blue-600">{doctor.specialty}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-0 space-y-3">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Calendar className="w-4 h-4" />
+                          <span className="text-sm">{getScheduleText(doctor.schedule)}</span>
+                        </div>
+                        <Badge className={doctor.status ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
+                          {doctor.status ? 'Tersedia Hari Ini' : 'Tidak Tersedia'}
+                        </Badge>
+                      </CardContent>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))
+            )}
           </div>
           <div className="text-center mt-12">
             <Button onClick={() => onNavigate('reservation')} size="lg" className="bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600">

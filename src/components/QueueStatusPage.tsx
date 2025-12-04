@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react';
 import { Heart, ArrowLeft, Clock, Users, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
+import { getQueueStatus, getReservations } from '../lib/api/reservations';
+import type { QueueData } from '../types/database';
 
 type Page = 'landing' | 'queue' | 'reservation' | 'about' | 'admin-login' | 'admin-dashboard' | 'admin-doctors' | 'admin-services' | 'admin-reservations';
 
@@ -9,14 +12,55 @@ interface QueueStatusPageProps {
   onNavigate: (page: Page) => void;
 }
 
-const queueData = [
-  { id: 1, doctor: 'Dr. Sarah Wijaya, Sp.PD', currentQueue: 'A003', estimatedTime: '15 menit', waiting: 3, status: 'active' },
-  { id: 2, doctor: 'Dr. Ahmad Hartono, Sp.JP', currentQueue: 'B007', estimatedTime: '30 menit', waiting: 7, status: 'active' },
-  { id: 3, doctor: 'Dr. Lisa Andini, Sp.A', currentQueue: 'C002', estimatedTime: '10 menit', waiting: 2, status: 'active' },
-  { id: 4, doctor: 'Dr. Budi Santoso, Sp.OG', currentQueue: 'D005', estimatedTime: '45 menit', waiting: 5, status: 'active' },
-];
-
 export function QueueStatusPage({ onNavigate }: QueueStatusPageProps) {
+  const [queueData, setQueueData] = useState<QueueData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalQueue: 0,
+    served: 0,
+    waiting: 0,
+    avgTime: '0',
+  });
+
+  useEffect(() => {
+    async function fetchQueueData() {
+      try {
+        setLoading(true);
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Fetch queue status
+        const queueInfo = await getQueueStatus(today);
+        setQueueData(queueInfo);
+
+        // Fetch today's reservations for stats
+        const todayReservations = await getReservations({ date: today });
+        
+        const served = todayReservations.filter(r => r.status === 'Selesai').length;
+        const waiting = todayReservations.filter(r => ['Menunggu', 'Dikonfirmasi'].includes(r.status)).length;
+        const total = todayReservations.length;
+        
+        // Calculate average wait time (assume 15 minutes per patient)
+        const avgMinutes = waiting > 0 ? Math.round((waiting * 15) / waiting) : 0;
+
+        setStats({
+          totalQueue: total,
+          served,
+          waiting,
+          avgTime: `${avgMinutes}m`,
+        });
+      } catch (error) {
+        console.error('Error fetching queue data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchQueueData();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchQueueData, 30000);
+    return () => clearInterval(interval);
+  }, []);
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -68,7 +112,7 @@ export function QueueStatusPage({ onNavigate }: QueueStatusPageProps) {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <p className="text-3xl text-blue-600">47</p>
+                <p className="text-3xl text-blue-600">{loading ? '...' : stats.totalQueue}</p>
                 <Users className="w-8 h-8 text-blue-400" />
               </div>
             </CardContent>
@@ -79,7 +123,7 @@ export function QueueStatusPage({ onNavigate }: QueueStatusPageProps) {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <p className="text-3xl text-green-600">30</p>
+                <p className="text-3xl text-green-600">{loading ? '...' : stats.served}</p>
                 <CheckCircle className="w-8 h-8 text-green-400" />
               </div>
             </CardContent>
@@ -90,7 +134,7 @@ export function QueueStatusPage({ onNavigate }: QueueStatusPageProps) {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <p className="text-3xl text-yellow-600">17</p>
+                <p className="text-3xl text-yellow-600">{loading ? '...' : stats.waiting}</p>
                 <Clock className="w-8 h-8 text-yellow-400" />
               </div>
             </CardContent>
@@ -101,7 +145,7 @@ export function QueueStatusPage({ onNavigate }: QueueStatusPageProps) {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <p className="text-3xl text-purple-600">25m</p>
+                <p className="text-3xl text-purple-600">{loading ? '...' : stats.avgTime}</p>
                 <AlertCircle className="w-8 h-8 text-purple-400" />
               </div>
             </CardContent>
@@ -112,44 +156,54 @@ export function QueueStatusPage({ onNavigate }: QueueStatusPageProps) {
         <div className="space-y-6">
           <h3 className="text-2xl text-gray-900">Antrian Per Dokter</h3>
           <div className="grid grid-cols-2 gap-6">
-            {queueData.map((queue) => (
-              <Card key={queue.id} className="border-2 border-gray-100 hover:shadow-lg transition-shadow">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-gray-900 mb-1">{queue.doctor}</CardTitle>
-                      <Badge className="bg-green-100 text-green-700">Aktif</Badge>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600 mb-1">Nomor Antrian Saat Ini</p>
-                      <p className="text-3xl text-blue-600">{queue.currentQueue}</p>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                        <Users className="w-6 h-6 text-yellow-600" />
-                      </div>
+            {loading ? (
+              <div className="col-span-2 text-center py-12 text-gray-500">
+                Memuat data antrian...
+              </div>
+            ) : queueData.length === 0 ? (
+              <div className="col-span-2 text-center py-12 text-gray-500">
+                Tidak ada antrian hari ini
+              </div>
+            ) : (
+              queueData.map((queue) => (
+                <Card key={queue.doctor.id} className="border-2 border-gray-100 hover:shadow-lg transition-shadow">
+                  <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50">
+                    <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm text-gray-600">Pasien Menunggu</p>
-                        <p className="text-xl text-gray-900">{queue.waiting} orang</p>
+                        <CardTitle className="text-gray-900 mb-1">{queue.doctor.name}</CardTitle>
+                        <Badge className="bg-green-100 text-green-700">Aktif</Badge>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600 mb-1">Nomor Antrian Saat Ini</p>
+                        <p className="text-3xl text-blue-600">{queue.current_queue || '-'}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-blue-600" />
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                          <Users className="w-6 h-6 text-yellow-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Pasien Menunggu</p>
+                          <p className="text-xl text-gray-900">{queue.waiting_count} orang</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Estimasi Tunggu</p>
-                        <p className="text-xl text-gray-900">{queue.estimatedTime}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                          <Clock className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Estimasi Tunggu</p>
+                          <p className="text-xl text-gray-900">{queue.estimated_time}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </div>
 
