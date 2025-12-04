@@ -317,7 +317,7 @@ export function DoctorManagement({ onNavigate, onLogout }: DoctorManagementProps
 
       {/* Add Doctor Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-start overflow-y-auto z-50 p-6">
           <Card className="w-full max-w-md border-2 border-gray-100">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50">
               <div className="flex items-center justify-between">
@@ -438,7 +438,7 @@ export function DoctorManagement({ onNavigate, onLogout }: DoctorManagementProps
 
       {/* Edit Doctor Modal */}
       {isEditModalOpen && selectedDoctor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-start overflow-y-auto z-50 p-6">
           <Card className="w-full max-w-md border-2 border-gray-100">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50">
               <div className="flex items-center justify-between">
