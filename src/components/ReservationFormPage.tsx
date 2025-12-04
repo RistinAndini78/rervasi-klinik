@@ -35,6 +35,26 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
     notes: ''
   });
 
+   // === Fungsi otomatis pilih dokter ===
+const handleSelectService = (serviceId: string) => {
+  // Set layanan
+  setFormData(prev => ({ ...prev, service: serviceId }));
+
+  // Cari layanan yang dipilih
+  const selected = services.find(s => s.id === serviceId);
+
+  // Kalau layanan punya doctor_id → set otomatis
+  if (selected?.doctor_id) {
+    setFormData(prev => ({ ...prev, doctor: selected.doctor_id }));
+  } else {
+    // Jika layanan tidak punya doctor_id → kosongkan dokter
+    setFormData(prev => ({ ...prev, doctor: '' }));
+  }
+};
+
+
+
+
   // Fetch services and doctors on mount
   useEffect(() => {
     async function fetchData() {
@@ -258,49 +278,51 @@ export function ReservationFormPage({ onNavigate }: ReservationFormPageProps) {
                 </div>
               </div>
 
-              {/* Appointment Details */}
               <div className="space-y-4 pt-4 border-t">
-                <h4 className="text-gray-900">Detail Janji Temu</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="service">Pilih Layanan</Label>
-                    <Select value={formData.service} onValueChange={(value) => setFormData({...formData, service: value})} required>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih layanan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {loading ? (
-                          <SelectItem value="loading" disabled>Memuat...</SelectItem>
-                        ) : services.length === 0 ? (
-                          <SelectItem value="none" disabled>Tidak ada layanan</SelectItem>
-                        ) : (
-                          services.map((service) => (
-                            <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="doctor">Pilih Dokter</Label>
-                    <Select value={formData.doctor} onValueChange={(value) => setFormData({...formData, doctor: value})} required>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih dokter" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {loading ? (
-                          <SelectItem value="loading" disabled>Memuat...</SelectItem>
-                        ) : doctors.length === 0 ? (
-                          <SelectItem value="none" disabled>Tidak ada dokter</SelectItem>
-                        ) : (
-                          doctors.map((doctor) => (
-                            <SelectItem key={doctor.id} value={doctor.id}>{doctor.name}</SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+  <h4 className="text-gray-900">Detail Janji Temu</h4>
+
+  <div className="grid grid-cols-2 gap-4">
+
+    {/* PILIH LAYANAN */}
+    <div className="space-y-2">
+      <Label htmlFor="service">Pilih Layanan</Label>
+      <Select 
+        value={formData.service} 
+        onValueChange={handleSelectService} 
+        required
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Pilih layanan" />
+        </SelectTrigger>
+
+        <SelectContent>
+          {loading ? (
+            <SelectItem value="loading" disabled>Memuat...</SelectItem>
+          ) : services.length === 0 ? (
+            <SelectItem value="none" disabled>Tidak ada layanan</SelectItem>
+          ) : (
+            services.map((service) => (
+              <SelectItem key={service.id} value={service.id}>
+                {service.name}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* DOKTER OTOMATIS */}
+    <div className="space-y-2">
+      <Label htmlFor="doctor">Dokter</Label>
+      <Input
+        id="doctor"
+        value={
+          doctors.find(d => d.id === formData.doctor)?.name || ""
+        }
+        disabled
+      />
+    </div>
+</div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="date">
